@@ -1,0 +1,9 @@
+[submodule "modules/JUCE"]
+	path = modules/JUCE
+	url = https://github.com/juce-framework/JUCE.git
+[submodule "modules/cmake-includes"]
+	path = modules/cmake-includes
+	url = https://github.com/sudara/cmake-includes.git
+[submodule "modules/Catch2"]
+	path = modules/Catch2
+	url = https://github.com/catchorg/Catch2.git

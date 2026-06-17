@@ -1,0 +1,33 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always
+ColumnLimit: 120
+AllowShortFunctionsOnASingleLine: Inline
+BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterControlStatement: Never
+  AfterFunction: true
+  AfterStruct: true
+  AfterClass: true
+  AfterEnum: true
+  BeforeCatch: true
+  BeforeElse: true
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+SpaceAfterTemplateKeyword: true
+PointerAlignment: Left
+DerivePointerAlignment: false
+ReferenceAlignment: Left
+AlignAfterOpenBracket: Align
+AlignOperands: true
+SortIncludes: true
+IncludeCategories:
+  - Regex: '^<.*>'
+    Priority: 1
+  - Regex: '^".*"'
+    Priority: 2
+IncludeBlocks: Preserve
+AllowAllArgumentsOnNextLine: true
+RemoveBracesLLVM: false
+
