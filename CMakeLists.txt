@@ -16,10 +16,10 @@ add_subdirectory(modules/JUCE)
 # Disabled by default because the build currently relies on JUCE's
 # custom build helpers and can fail in constrained CI/build environments.
 # Re-enable once the core build is stable.
-#if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
-#    enable_testing()
-#    add_subdirectory(tests)
-#endif()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
 
 
