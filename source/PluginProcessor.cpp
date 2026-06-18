@@ -16,6 +16,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 						 ),
 	  apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
+	setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples());
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor() {}
@@ -91,9 +92,18 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 {
 	const bool sampleRateChanged = std::abs(crossover.getSampleRate() - sampleRate) > 0.00001;
 	crossover.prepare(sampleRate, samplesPerBlock);
+
+	// Prepare compressors — total latency includes crossover delay + any lookahead
+	const auto numChannels = getTotalNumOutputChannels();
+	lowCompressor.prepare(sampleRate, samplesPerBlock, numChannels);
+	midCompressor.prepare(sampleRate, samplesPerBlock, numChannels);
+	highCompressor.prepare(sampleRate, samplesPerBlock, numChannels);
+
 	if (sampleRateChanged)
 	{
-		setLatencySamples(crossover.getGroupDelaySamples());
+		// Total latency: crossover delay + fixed 2 ms delay (always on for all
+		// compressor instances to keep bands phase-aligned).
+		setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples());
 	}
 }
 
@@ -126,58 +136,102 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 #endif
 }
 
+/** Map a ratio choice index to its numeric value. */
+static constexpr float ratioChoices[] = {1.0f, 2.0f, 4.0f, 8.0f, 12.0f, 20.0f};
+static constexpr int numRatioChoices = 6;
+
+/** Helper: set a Compressor's parameters from APVTS values using band-prefixed params. */
+static void applyCompressorParams(Compressor& comp, juce::AudioProcessorValueTreeState& apvts, Param attack,
+								  Param release, Param threshold, Param ratio, Param knee, Param lookahead,
+								  Param makeupGain)
+{
+	comp.setAttack(apvts.getRawParameterValue(ParamUtils::toIdentifier(attack))->load());
+	comp.setRelease(apvts.getRawParameterValue(ParamUtils::toIdentifier(release))->load());
+	comp.setThreshold(apvts.getRawParameterValue(ParamUtils::toIdentifier(threshold))->load());
+	{
+		const auto param =
+			dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(ParamUtils::toIdentifier(ratio)));
+		const int clampedIndex = juce::jlimit(0, numRatioChoices - 1, param->getIndex());
+		comp.setRatio(ratioChoices[clampedIndex]);
+	}
+	const auto kneeParam = dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter(ParamUtils::toIdentifier(knee)));
+	comp.setKnee(kneeParam->get());
+	const auto lookAheadParam =
+		dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter(ParamUtils::toIdentifier(lookahead)));
+	comp.setLookaheadEnabled(lookAheadParam->get());
+	comp.setMakeupGain(apvts.getRawParameterValue(ParamUtils::toIdentifier(makeupGain))->load());
+}
+
 void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
 	juce::ignoreUnused(midiMessages);
 
 	juce::ScopedNoDenormals noDenormals;
 
-	// Set parameters
+	// --- Set crossover parameters ---
 	const auto lowXover = apvts.getRawParameterValue(ParamUtils::toIdentifier(Param::LowXoverDb))->load();
 	const auto highXover = apvts.getRawParameterValue(ParamUtils::toIdentifier(Param::HighXoverDb))->load();
 	crossover.setLowCrossover(lowXover);
 	crossover.setHighCrossover(highXover);
 
-	// Process audio
-	//  auto totalNumInputChannels = getTotalNumInputChannels();
-	auto totalNumOutputChannels = getTotalNumOutputChannels();
-	auto numSamples = buffer.getNumSamples();
+	// --- Set compressor parameters for each band ---
+	applyCompressorParams(lowCompressor, apvts, Param::LowAttack, Param::LowRelease, Param::LowThreshold,
+						  Param::LowRatio, Param::LowKnee, Param::LowLookahead, Param::LowMakeupGain);
+	applyCompressorParams(midCompressor, apvts, Param::MidAttack, Param::MidRelease, Param::MidThreshold,
+						  Param::MidRatio, Param::MidKnee, Param::MidLookahead, Param::MidMakeupGain);
+	applyCompressorParams(highCompressor, apvts, Param::HighAttack, Param::HighRelease, Param::HighThreshold,
+						  Param::HighRatio, Param::HighKnee, Param::HighLookahead, Param::HighMakeupGain);
 
+	// --- Split into bands ---
 	crossover.split(buffer);
 
-	for (int channel = 0; channel < totalNumOutputChannels; ++channel)
+	const int numChannels = buffer.getNumChannels();
+	const int numSamples = buffer.getNumSamples();
+
+	// --- Temporary buffers for compressor output ---
+	juce::AudioBuffer<float> lowOut(numChannels, numSamples);
+	juce::AudioBuffer<float> midOut(numChannels, numSamples);
+	juce::AudioBuffer<float> highOut(numChannels, numSamples);
+
+	// Build channel pointer arrays for the compressor's process() method
+	std::vector<const float*> chIn(static_cast<size_t>(numChannels));
+	std::vector<float*> chOut(static_cast<size_t>(numChannels));
+
+	// --- Compress low band ---
+	for (int ch = 0; ch < numChannels; ++ch)
 	{
-		auto* channelData = buffer.getWritePointer(channel);
-
-		const float* bandAudio = crossover.getMidBand(channel);
-
-		for (int sample = 0; sample < numSamples; sample++)
-		{
-			channelData[sample] = bandAudio[sample];
-		}
+		chIn[static_cast<size_t>(ch)] = crossover.getLowBand(ch);
+		chOut[static_cast<size_t>(ch)] = lowOut.getWritePointer(ch);
 	}
+	lowCompressor.process(chIn.data(), chOut.data(), numSamples);
 
-	// In case we have more outputs than inputs, this code clears any output
-	// channels that didn't contain input data, (because these aren't
-	// guaranteed to be empty - they may contain garbage).
-	// This is here to avoid people getting screaming feedback
-	// when they first compile a plugin, but obviously you don't need to keep
-	// this code if your algorithm always overwrites all the output channels.
-	// for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-	//    buffer.clear (i, 0, buffer.getNumSamples());
-
-	// This is the place where you'd normally do the guts of your plugin's
-	// audio processing...
-	// Make sure to reset the state if your inner loop is processing
-	// the samples and the outer loop is handling the channels.
-	// Alternatively, you can process the samples with the channels
-	// interleaved by keeping the same state.
-	/*for (int channel = 0; channel < totalNumInputChannels; ++channel)
+	// --- Compress mid band ---
+	for (int ch = 0; ch < numChannels; ++ch)
 	{
-		auto* channelData = buffer.getWritePointer (channel);
-		juce::ignoreUnused (channelData);
-		// ..do something to the data...
-	}*/
+		chIn[static_cast<size_t>(ch)] = crossover.getMidBand(ch);
+		chOut[static_cast<size_t>(ch)] = midOut.getWritePointer(ch);
+	}
+	midCompressor.process(chIn.data(), chOut.data(), numSamples);
+
+	// --- Compress high band ---
+	for (int ch = 0; ch < numChannels; ++ch)
+	{
+		chIn[static_cast<size_t>(ch)] = crossover.getHighBand(ch);
+		chOut[static_cast<size_t>(ch)] = highOut.getWritePointer(ch);
+	}
+	highCompressor.process(chIn.data(), chOut.data(), numSamples);
+
+	// --- Sum compressed bands into output buffer ---
+	for (int ch = 0; ch < numChannels; ++ch)
+	{
+		auto* out = buffer.getWritePointer(ch);
+		const auto* l = lowOut.getReadPointer(ch);
+		const auto* m = midOut.getReadPointer(ch);
+		const auto* h = highOut.getReadPointer(ch);
+
+		for (int n = 0; n < numSamples; ++n)
+			out[n] = l[n] + m[n] + h[n];
+	}
 }
 
 //==============================================================================
@@ -212,17 +266,55 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 {
 	juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-	// Crossover Parameters
+	// --- Crossover Parameters ---
 	layout.add(std::make_unique<juce::AudioProcessorParameterGroup>(
-				   "Crossover", "Crossover", ":",
-				   std::make_unique<juce::AudioParameterFloat>(
-					   ParamUtils::toParameterID(Param::LowXoverDb), ParamUtils::toName(Param::LowXoverDb),
-					   juce::NormalisableRange(60.f, 200.0f, 10.f), 120.0f,
-					   juce::AudioParameterFloatAttributes().withAutomatable(false))),
-			   std::make_unique<juce::AudioParameterFloat>(
-				   ParamUtils::toParameterID(Param::HighXoverDb), ParamUtils::toName(Param::HighXoverDb),
-				   juce::NormalisableRange(2000.0f, 14000.0f, 100.f), 8000.0f,
-				   juce::AudioParameterFloatAttributes().withAutomatable(false)));
+		"Crossover", "Crossover", ":",
+		std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(Param::LowXoverDb),
+													ParamUtils::toName(Param::LowXoverDb),
+													juce::NormalisableRange(60.f, 200.0f, 10.f), 120.0f,
+													juce::AudioParameterFloatAttributes().withAutomatable(false)),
+		std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(Param::HighXoverDb),
+													ParamUtils::toName(Param::HighXoverDb),
+													juce::NormalisableRange(2000.0f, 14000.0f, 100.f), 8000.0f,
+													juce::AudioParameterFloatAttributes().withAutomatable(false))));
+
+	// --- Helper to add a band's compressor parameters ---
+	auto addBandGroup = [&](const juce::String& id, const juce::String& name, Param attack, Param release,
+							Param threshold, Param ratio, Param knee, Param lookahead, Param makeupGain)
+	{
+		const juce::StringArray ratioNames = {"1:1", "2:1", "4:1", "8:1", "12:1", "20:1"};
+
+		layout.add(std::make_unique<juce::AudioProcessorParameterGroup>(
+			id, name, ":",
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(attack), ParamUtils::toName(attack),
+														juce::NormalisableRange(0.1f, 100.0f, 0.1f), 10.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true)),
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(release), ParamUtils::toName(release),
+														juce::NormalisableRange(1.0f, 1000.0f, 1.0f), 100.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true)),
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(threshold),
+														ParamUtils::toName(threshold),
+														juce::NormalisableRange(-60.0f, 0.0f, 0.5f), -24.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true)),
+			std::make_unique<juce::AudioParameterChoice>(ParamUtils::toParameterID(ratio), ParamUtils::toName(ratio),
+														 ratioNames, 2), // 2 = index for 4:1
+			std::make_unique<juce::AudioParameterBool>(ParamUtils::toParameterID(knee), ParamUtils::toName(knee), true,
+													   juce::AudioParameterBoolAttributes().withAutomatable(false)),
+			std::make_unique<juce::AudioParameterBool>(ParamUtils::toParameterID(lookahead),
+													   ParamUtils::toName(lookahead), false,
+													   juce::AudioParameterBoolAttributes().withAutomatable(false)),
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(makeupGain),
+														ParamUtils::toName(makeupGain),
+														juce::NormalisableRange(0.0f, 24.0f, 0.1f), 0.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true))));
+	};
+
+	addBandGroup("LowComp", "Low Compressor", Param::LowAttack, Param::LowRelease, Param::LowThreshold, Param::LowRatio,
+				 Param::LowKnee, Param::LowLookahead, Param::LowMakeupGain);
+	addBandGroup("MidComp", "Mid Compressor", Param::MidAttack, Param::MidRelease, Param::MidThreshold, Param::MidRatio,
+				 Param::MidKnee, Param::MidLookahead, Param::MidMakeupGain);
+	addBandGroup("HighComp", "High Compressor", Param::HighAttack, Param::HighRelease, Param::HighThreshold,
+				 Param::HighRatio, Param::HighKnee, Param::HighLookahead, Param::HighMakeupGain);
 
 	return layout;
 }

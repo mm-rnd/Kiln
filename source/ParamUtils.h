@@ -7,6 +7,27 @@ enum class Param
 {
 	LowXoverDb,
 	HighXoverDb,
+	LowAttack,
+	LowRelease,
+	LowThreshold,
+	LowRatio,
+	LowKnee,
+	LowLookahead,
+	LowMakeupGain,
+	MidAttack,
+	MidRelease,
+	MidThreshold,
+	MidRatio,
+	MidKnee,
+	MidLookahead,
+	MidMakeupGain,
+	HighAttack,
+	HighRelease,
+	HighThreshold,
+	HighRatio,
+	HighKnee,
+	HighLookahead,
+	HighMakeupGain,
 };
 
 namespace ParamUtils

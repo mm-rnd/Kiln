@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Compressor.h"
 #include "LinearPhaseCrossover.h"
 
 //==============================================================================
@@ -50,6 +51,11 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
 	juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 	LinearPhaseCrossover crossover;
+
+	/** One compressor per crossover band. */
+	Compressor lowCompressor;
+	Compressor midCompressor;
+	Compressor highCompressor;
 
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)

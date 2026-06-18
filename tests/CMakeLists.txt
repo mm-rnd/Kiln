@@ -8,6 +8,7 @@ enable_testing()
 add_executable(KilnTests
     LinearPhaseCrossover.cpp
     ParamUtils.cpp
+    Compressor.cpp
 )
 
 target_link_libraries(KilnTests PRIVATE
@@ -22,6 +23,7 @@ target_link_libraries(KilnTests PRIVATE
 target_sources(KilnTests PRIVATE
     ${CMAKE_SOURCE_DIR}/source/LinearPhaseCrossover.cpp
     ${CMAKE_SOURCE_DIR}/source/ParamUtils.cpp
+    ${CMAKE_SOURCE_DIR}/source/Compressor.cpp
 )
 
 add_test(NAME KilnTests COMMAND KilnTests)
