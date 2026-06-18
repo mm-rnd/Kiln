@@ -40,6 +40,9 @@ enum class Param
 	HighSaturationEvenOdd,
 	HighSaturationHeavy,
 	HighSaturationMix,
+	LowOutputGain,
+	MidOutputGain,
+	HighOutputGain,
 };
 
 namespace ParamUtils

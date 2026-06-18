@@ -181,6 +181,21 @@ TEST_CASE("ParamUtils::toIdentifier returns the correct identifier string", "[pa
 	{
 		CHECK(ParamUtils::toIdentifier(Param::HighSaturationMix) == "HighSaturationMix");
 	}
+
+	SECTION("LowOutputGain")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::LowOutputGain) == "LowOutputGain");
+	}
+
+	SECTION("MidOutputGain")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::MidOutputGain) == "MidOutputGain");
+	}
+
+	SECTION("HighOutputGain")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::HighOutputGain) == "HighOutputGain");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +378,21 @@ TEST_CASE("ParamUtils::toName returns the correct display name", "[paramutils]")
 	{
 		CHECK(ParamUtils::toName(Param::HighSaturationMix) == "High Sat Mix");
 	}
+
+	SECTION("LowOutputGain")
+	{
+		CHECK(ParamUtils::toName(Param::LowOutputGain) == "Low Output");
+	}
+
+	SECTION("MidOutputGain")
+	{
+		CHECK(ParamUtils::toName(Param::MidOutputGain) == "Mid Output");
+	}
+
+	SECTION("HighOutputGain")
+	{
+		CHECK(ParamUtils::toName(Param::HighOutputGain) == "High Output");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +463,9 @@ TEST_CASE("ParamUtils: ParameterID round-trip matches the enum", "[paramutils]")
 		{Param::HighSaturationEvenOdd, "HighSaturationEvenOdd"},
 		{Param::HighSaturationHeavy, "HighSaturationHeavy"},
 		{Param::HighSaturationMix, "HighSaturationMix"},
+		{Param::LowOutputGain, "LowOutputGain"},
+		{Param::MidOutputGain, "MidOutputGain"},
+		{Param::HighOutputGain, "HighOutputGain"},
 	};
 
 	for (const auto& [param, expectedID] : cases)

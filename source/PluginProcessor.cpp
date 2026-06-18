@@ -104,6 +104,11 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 	midSaturation.prepare(sampleRate, samplesPerBlock);
 	highSaturation.prepare(sampleRate, samplesPerBlock);
 
+	// Prepare output gain stages
+	lowGain.prepare(sampleRate);
+	midGain.prepare(sampleRate);
+	highGain.prepare(sampleRate);
+
 	if (sampleRateChanged)
 	{
 		// Total latency: crossover delay + fixed 2 ms delay (always on for all
@@ -157,6 +162,12 @@ static void applySaturationParams(Saturation& sat, juce::AudioProcessorValueTree
 	sat.setMix(apvts.getRawParameterValue(ParamUtils::toIdentifier(mix))->load());
 }
 
+/** Helper: set a Gain's parameters from APVTS values using band-prefixed params. */
+static void applyGainParams(Gain& gain, juce::AudioProcessorValueTreeState& apvts, Param outputGain)
+{
+	gain.setGain(apvts.getRawParameterValue(ParamUtils::toIdentifier(outputGain))->load());
+}
+
 /** Helper: set a Compressor's parameters from APVTS values using band-prefixed params. */
 static void applyCompressorParams(Compressor& comp, juce::AudioProcessorValueTreeState& apvts, Param attack,
 								  Param release, Param threshold, Param ratio, Param knee, Param lookahead,
@@ -207,6 +218,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	applySaturationParams(highSaturation, apvts, Param::HighSaturationDrive, Param::HighSaturationEvenOdd,
 						  Param::HighSaturationHeavy, Param::HighSaturationMix);
 
+	// --- Set output gain parameters for each band ---
+	applyGainParams(lowGain, apvts, Param::LowOutputGain);
+	applyGainParams(midGain, apvts, Param::MidOutputGain);
+	applyGainParams(highGain, apvts, Param::HighOutputGain);
+
 	// --- Split into bands ---
 	crossover.split(buffer);
 
@@ -250,6 +266,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	lowSaturation.process(lowOut);
 	midSaturation.process(midOut);
 	highSaturation.process(highOut);
+
+	// --- Apply output gain to each band ---
+	lowGain.process(lowOut);
+	midGain.process(midOut);
+	highGain.process(highOut);
 
 	// --- Sum compressed bands into output buffer ---
 	for (int ch = 0; ch < numChannels; ++ch)
@@ -372,6 +393,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 					   Param::MidSaturationHeavy, Param::MidSaturationMix);
 	addSaturationGroup("HighSat", "High Saturation", Param::HighSaturationDrive, Param::HighSaturationEvenOdd,
 					   Param::HighSaturationHeavy, Param::HighSaturationMix);
+
+	// --- Helper to add a band's output gain parameters ---
+	auto addOutputGainGroup = [&](const juce::String& id, const juce::String& name, Param outputGain)
+	{
+		layout.add(std::make_unique<juce::AudioProcessorParameterGroup>(
+			id, name, ":",
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(outputGain),
+														ParamUtils::toName(outputGain),
+														juce::NormalisableRange(-24.0f, 24.0f, 0.1f), 0.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true))));
+	};
+
+	addOutputGainGroup("LowGain", "Low Output", Param::LowOutputGain);
+	addOutputGainGroup("MidGain", "Mid Output", Param::MidOutputGain);
+	addOutputGainGroup("HighGain", "High Output", Param::HighOutputGain);
 
 	return layout;
 }

@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "Compressor.h"
+#include "Gain.h"
 #include "LinearPhaseCrossover.h"
 #include "Saturation.h"
 
@@ -62,6 +63,11 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
 	Saturation lowSaturation;
 	Saturation midSaturation;
 	Saturation highSaturation;
+
+	/** One output gain stage per crossover band. */
+	Gain lowGain;
+	Gain midGain;
+	Gain highGain;
 
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)

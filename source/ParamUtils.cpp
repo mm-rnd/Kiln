@@ -74,6 +74,12 @@ juce::String ParamUtils::toIdentifier(Param param)
 		return "HighSaturationHeavy";
 	case Param::HighSaturationMix:
 		return "HighSaturationMix";
+	case Param::LowOutputGain:
+		return "LowOutputGain";
+	case Param::MidOutputGain:
+		return "MidOutputGain";
+	case Param::HighOutputGain:
+		return "HighOutputGain";
 	}
 	jassertfalse;
 	return {};
@@ -153,6 +159,12 @@ juce::String ParamUtils::toName(Param param)
 		return "High Sat Heavy";
 	case Param::HighSaturationMix:
 		return "High Sat Mix";
+	case Param::LowOutputGain:
+		return "Low Output";
+	case Param::MidOutputGain:
+		return "Mid Output";
+	case Param::HighOutputGain:
+		return "High Output";
 	}
 	jassertfalse;
 	return {};

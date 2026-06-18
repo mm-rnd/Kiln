@@ -6,6 +6,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/modules/Catch2 ${CMAKE_BINARY_DIR}/Catch2)
 enable_testing()
 
 add_executable(KilnTests
+    Gain.cpp
     LinearPhaseCrossover.cpp
     ParamUtils.cpp
     Compressor.cpp
@@ -22,6 +23,7 @@ target_link_libraries(KilnTests PRIVATE
 )
 
 target_sources(KilnTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/source/Gain.cpp
     ${CMAKE_SOURCE_DIR}/source/LinearPhaseCrossover.cpp
     ${CMAKE_SOURCE_DIR}/source/ParamUtils.cpp
     ${CMAKE_SOURCE_DIR}/source/Compressor.cpp
