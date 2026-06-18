@@ -99,6 +99,11 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 	midCompressor.prepare(sampleRate, samplesPerBlock, numChannels);
 	highCompressor.prepare(sampleRate, samplesPerBlock, numChannels);
 
+	// Prepare saturation stages
+	lowSaturation.prepare(sampleRate, samplesPerBlock);
+	midSaturation.prepare(sampleRate, samplesPerBlock);
+	highSaturation.prepare(sampleRate, samplesPerBlock);
+
 	if (sampleRateChanged)
 	{
 		// Total latency: crossover delay + fixed 2 ms delay (always on for all
@@ -139,6 +144,18 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout& layout
 /** Map a ratio choice index to its numeric value. */
 static constexpr float ratioChoices[] = {1.0f, 2.0f, 4.0f, 8.0f, 12.0f, 20.0f};
 static constexpr int numRatioChoices = 6;
+
+/** Helper: set a Saturation's parameters from APVTS values using band-prefixed params. */
+static void applySaturationParams(Saturation& sat, juce::AudioProcessorValueTreeState& apvts, Param drive,
+								  Param evenOdd, Param heavy, Param mix)
+{
+	sat.setDrive(apvts.getRawParameterValue(ParamUtils::toIdentifier(drive))->load());
+	sat.setEvenOddBalance(apvts.getRawParameterValue(ParamUtils::toIdentifier(evenOdd))->load());
+	const auto heavyParam =
+		dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter(ParamUtils::toIdentifier(heavy)));
+	sat.setHeavyMode(heavyParam->get());
+	sat.setMix(apvts.getRawParameterValue(ParamUtils::toIdentifier(mix))->load());
+}
 
 /** Helper: set a Compressor's parameters from APVTS values using band-prefixed params. */
 static void applyCompressorParams(Compressor& comp, juce::AudioProcessorValueTreeState& apvts, Param attack,
@@ -182,6 +199,14 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	applyCompressorParams(highCompressor, apvts, Param::HighAttack, Param::HighRelease, Param::HighThreshold,
 						  Param::HighRatio, Param::HighKnee, Param::HighLookahead, Param::HighMakeupGain);
 
+	// --- Set saturation parameters for each band ---
+	applySaturationParams(lowSaturation, apvts, Param::LowSaturationDrive, Param::LowSaturationEvenOdd,
+						  Param::LowSaturationHeavy, Param::LowSaturationMix);
+	applySaturationParams(midSaturation, apvts, Param::MidSaturationDrive, Param::MidSaturationEvenOdd,
+						  Param::MidSaturationHeavy, Param::MidSaturationMix);
+	applySaturationParams(highSaturation, apvts, Param::HighSaturationDrive, Param::HighSaturationEvenOdd,
+						  Param::HighSaturationHeavy, Param::HighSaturationMix);
+
 	// --- Split into bands ---
 	crossover.split(buffer);
 
@@ -220,6 +245,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 		chOut[static_cast<size_t>(ch)] = highOut.getWritePointer(ch);
 	}
 	highCompressor.process(chIn.data(), chOut.data(), numSamples);
+
+	// --- Apply saturation to each compressed band ---
+	lowSaturation.process(lowOut);
+	midSaturation.process(midOut);
+	highSaturation.process(highOut);
 
 	// --- Sum compressed bands into output buffer ---
 	for (int ch = 0; ch < numChannels; ++ch)
@@ -315,6 +345,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 				 Param::MidKnee, Param::MidLookahead, Param::MidMakeupGain);
 	addBandGroup("HighComp", "High Compressor", Param::HighAttack, Param::HighRelease, Param::HighThreshold,
 				 Param::HighRatio, Param::HighKnee, Param::HighLookahead, Param::HighMakeupGain);
+
+	// --- Helper to add a band's saturation parameters ---
+	auto addSaturationGroup =
+		[&](const juce::String& id, const juce::String& name, Param drive, Param evenOdd, Param heavy, Param mix)
+	{
+		layout.add(std::make_unique<juce::AudioProcessorParameterGroup>(
+			id, name, ":",
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(drive), ParamUtils::toName(drive),
+														juce::NormalisableRange(0.0f, 100.0f, 1.0f), 0.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true)),
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(evenOdd), ParamUtils::toName(evenOdd),
+														juce::NormalisableRange(-100.0f, 100.0f, 1.0f), 0.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true)),
+			std::make_unique<juce::AudioParameterBool>(ParamUtils::toParameterID(heavy), ParamUtils::toName(heavy),
+													   false,
+													   juce::AudioParameterBoolAttributes().withAutomatable(false)),
+			std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(mix), ParamUtils::toName(mix),
+														juce::NormalisableRange(-100.0f, 100.0f, 1.0f), 0.0f,
+														juce::AudioParameterFloatAttributes().withAutomatable(true))));
+	};
+
+	addSaturationGroup("LowSat", "Low Saturation", Param::LowSaturationDrive, Param::LowSaturationEvenOdd,
+					   Param::LowSaturationHeavy, Param::LowSaturationMix);
+	addSaturationGroup("MidSat", "Mid Saturation", Param::MidSaturationDrive, Param::MidSaturationEvenOdd,
+					   Param::MidSaturationHeavy, Param::MidSaturationMix);
+	addSaturationGroup("HighSat", "High Saturation", Param::HighSaturationDrive, Param::HighSaturationEvenOdd,
+					   Param::HighSaturationHeavy, Param::HighSaturationMix);
 
 	return layout;
 }

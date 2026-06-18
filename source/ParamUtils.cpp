@@ -50,6 +50,30 @@ juce::String ParamUtils::toIdentifier(Param param)
 		return "HighLookahead";
 	case Param::HighMakeupGain:
 		return "HighMakeupGain";
+	case Param::LowSaturationDrive:
+		return "LowSaturationDrive";
+	case Param::LowSaturationEvenOdd:
+		return "LowSaturationEvenOdd";
+	case Param::LowSaturationHeavy:
+		return "LowSaturationHeavy";
+	case Param::LowSaturationMix:
+		return "LowSaturationMix";
+	case Param::MidSaturationDrive:
+		return "MidSaturationDrive";
+	case Param::MidSaturationEvenOdd:
+		return "MidSaturationEvenOdd";
+	case Param::MidSaturationHeavy:
+		return "MidSaturationHeavy";
+	case Param::MidSaturationMix:
+		return "MidSaturationMix";
+	case Param::HighSaturationDrive:
+		return "HighSaturationDrive";
+	case Param::HighSaturationEvenOdd:
+		return "HighSaturationEvenOdd";
+	case Param::HighSaturationHeavy:
+		return "HighSaturationHeavy";
+	case Param::HighSaturationMix:
+		return "HighSaturationMix";
 	}
 	jassertfalse;
 	return {};
@@ -105,6 +129,30 @@ juce::String ParamUtils::toName(Param param)
 		return "High Lookahead";
 	case Param::HighMakeupGain:
 		return "High Makeup Gain";
+	case Param::LowSaturationDrive:
+		return "Low Sat Drive";
+	case Param::LowSaturationEvenOdd:
+		return "Low Sat Even/Odd";
+	case Param::LowSaturationHeavy:
+		return "Low Sat Heavy";
+	case Param::LowSaturationMix:
+		return "Low Sat Mix";
+	case Param::MidSaturationDrive:
+		return "Mid Sat Drive";
+	case Param::MidSaturationEvenOdd:
+		return "Mid Sat Even/Odd";
+	case Param::MidSaturationHeavy:
+		return "Mid Sat Heavy";
+	case Param::MidSaturationMix:
+		return "Mid Sat Mix";
+	case Param::HighSaturationDrive:
+		return "High Sat Drive";
+	case Param::HighSaturationEvenOdd:
+		return "High Sat Even/Odd";
+	case Param::HighSaturationHeavy:
+		return "High Sat Heavy";
+	case Param::HighSaturationMix:
+		return "High Sat Mix";
 	}
 	jassertfalse;
 	return {};

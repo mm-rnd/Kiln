@@ -28,6 +28,18 @@ enum class Param
 	HighKnee,
 	HighLookahead,
 	HighMakeupGain,
+	LowSaturationDrive,
+	LowSaturationEvenOdd,
+	LowSaturationHeavy,
+	LowSaturationMix,
+	MidSaturationDrive,
+	MidSaturationEvenOdd,
+	MidSaturationHeavy,
+	MidSaturationMix,
+	HighSaturationDrive,
+	HighSaturationEvenOdd,
+	HighSaturationHeavy,
+	HighSaturationMix,
 };
 
 namespace ParamUtils

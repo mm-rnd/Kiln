@@ -121,6 +121,66 @@ TEST_CASE("ParamUtils::toIdentifier returns the correct identifier string", "[pa
 	{
 		CHECK(ParamUtils::toIdentifier(Param::HighMakeupGain) == "HighMakeupGain");
 	}
+
+	SECTION("LowSaturationDrive")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::LowSaturationDrive) == "LowSaturationDrive");
+	}
+
+	SECTION("LowSaturationEvenOdd")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::LowSaturationEvenOdd) == "LowSaturationEvenOdd");
+	}
+
+	SECTION("LowSaturationHeavy")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::LowSaturationHeavy) == "LowSaturationHeavy");
+	}
+
+	SECTION("LowSaturationMix")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::LowSaturationMix) == "LowSaturationMix");
+	}
+
+	SECTION("MidSaturationDrive")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::MidSaturationDrive) == "MidSaturationDrive");
+	}
+
+	SECTION("MidSaturationEvenOdd")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::MidSaturationEvenOdd) == "MidSaturationEvenOdd");
+	}
+
+	SECTION("MidSaturationHeavy")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::MidSaturationHeavy) == "MidSaturationHeavy");
+	}
+
+	SECTION("MidSaturationMix")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::MidSaturationMix) == "MidSaturationMix");
+	}
+
+	SECTION("HighSaturationDrive")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::HighSaturationDrive) == "HighSaturationDrive");
+	}
+
+	SECTION("HighSaturationEvenOdd")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::HighSaturationEvenOdd) == "HighSaturationEvenOdd");
+	}
+
+	SECTION("HighSaturationHeavy")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::HighSaturationHeavy) == "HighSaturationHeavy");
+	}
+
+	SECTION("HighSaturationMix")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::HighSaturationMix) == "HighSaturationMix");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +303,66 @@ TEST_CASE("ParamUtils::toName returns the correct display name", "[paramutils]")
 	{
 		CHECK(ParamUtils::toName(Param::HighMakeupGain) == "High Makeup Gain");
 	}
+
+	SECTION("LowSaturationDrive")
+	{
+		CHECK(ParamUtils::toName(Param::LowSaturationDrive) == "Low Sat Drive");
+	}
+
+	SECTION("LowSaturationEvenOdd")
+	{
+		CHECK(ParamUtils::toName(Param::LowSaturationEvenOdd) == "Low Sat Even/Odd");
+	}
+
+	SECTION("LowSaturationHeavy")
+	{
+		CHECK(ParamUtils::toName(Param::LowSaturationHeavy) == "Low Sat Heavy");
+	}
+
+	SECTION("LowSaturationMix")
+	{
+		CHECK(ParamUtils::toName(Param::LowSaturationMix) == "Low Sat Mix");
+	}
+
+	SECTION("MidSaturationDrive")
+	{
+		CHECK(ParamUtils::toName(Param::MidSaturationDrive) == "Mid Sat Drive");
+	}
+
+	SECTION("MidSaturationEvenOdd")
+	{
+		CHECK(ParamUtils::toName(Param::MidSaturationEvenOdd) == "Mid Sat Even/Odd");
+	}
+
+	SECTION("MidSaturationHeavy")
+	{
+		CHECK(ParamUtils::toName(Param::MidSaturationHeavy) == "Mid Sat Heavy");
+	}
+
+	SECTION("MidSaturationMix")
+	{
+		CHECK(ParamUtils::toName(Param::MidSaturationMix) == "Mid Sat Mix");
+	}
+
+	SECTION("HighSaturationDrive")
+	{
+		CHECK(ParamUtils::toName(Param::HighSaturationDrive) == "High Sat Drive");
+	}
+
+	SECTION("HighSaturationEvenOdd")
+	{
+		CHECK(ParamUtils::toName(Param::HighSaturationEvenOdd) == "High Sat Even/Odd");
+	}
+
+	SECTION("HighSaturationHeavy")
+	{
+		CHECK(ParamUtils::toName(Param::HighSaturationHeavy) == "High Sat Heavy");
+	}
+
+	SECTION("HighSaturationMix")
+	{
+		CHECK(ParamUtils::toName(Param::HighSaturationMix) == "High Sat Mix");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -301,6 +421,18 @@ TEST_CASE("ParamUtils: ParameterID round-trip matches the enum", "[paramutils]")
 		{Param::HighKnee, "HighKnee"},
 		{Param::HighLookahead, "HighLookahead"},
 		{Param::HighMakeupGain, "HighMakeupGain"},
+		{Param::LowSaturationDrive, "LowSaturationDrive"},
+		{Param::LowSaturationEvenOdd, "LowSaturationEvenOdd"},
+		{Param::LowSaturationHeavy, "LowSaturationHeavy"},
+		{Param::LowSaturationMix, "LowSaturationMix"},
+		{Param::MidSaturationDrive, "MidSaturationDrive"},
+		{Param::MidSaturationEvenOdd, "MidSaturationEvenOdd"},
+		{Param::MidSaturationHeavy, "MidSaturationHeavy"},
+		{Param::MidSaturationMix, "MidSaturationMix"},
+		{Param::HighSaturationDrive, "HighSaturationDrive"},
+		{Param::HighSaturationEvenOdd, "HighSaturationEvenOdd"},
+		{Param::HighSaturationHeavy, "HighSaturationHeavy"},
+		{Param::HighSaturationMix, "HighSaturationMix"},
 	};
 
 	for (const auto& [param, expectedID] : cases)
