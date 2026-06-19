@@ -53,6 +53,9 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
   private:
 	juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
+	juce::UndoManager undoManager;
+
+	/** Input crossover. */
 	LinearPhaseCrossover crossover;
 
 	/** One compressor per crossover band. */

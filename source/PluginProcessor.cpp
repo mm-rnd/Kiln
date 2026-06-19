@@ -14,7 +14,7 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 						 .withOutput("Output", juce::AudioChannelSet::stereo(), true)
 #endif
 						 ),
-	  apvts(*this, nullptr, "Parameters", createParameterLayout())
+	  apvts(*this, &undoManager, "Parameters", createParameterLayout())
 {
 	setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples() +
 					  limiter.getLatencySamples());
@@ -309,18 +309,32 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 //==============================================================================
 void AudioPluginAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-	// You should use this method to store your parameters in the memory block.
-	// You could do that either as raw data, or use the XML or ValueTree classes
-	// as intermediaries to make it easy to save and load complex data.
-	juce::ignoreUnused(destData);
+	// Save the APVTS state
+	auto state = apvts.copyState();
+
+	// Also save the current program index
+	state.setProperty("currentProgram", programManager.getCurrentProgram(), nullptr);
+
+	std::unique_ptr<juce::XmlElement> xml(state.createXml());
+	copyXmlToBinary(*xml, destData);
 }
 
 void AudioPluginAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-	// You should use this method to restore your parameters from this memory
-	// block, whose contents will have been created by the getStateInformation()
-	// call.
-	juce::ignoreUnused(data, sizeInBytes);
+	std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
+
+	if (xml != nullptr && xml->hasTagName(apvts.state.getType()))
+	{
+		apvts.replaceState(juce::ValueTree::fromXml(*xml));
+
+		// Restore the current program index if it was saved in the state
+		const auto& restoredState = apvts.state;
+		if (restoredState.hasProperty("currentProgram"))
+		{
+			const int progIndex = restoredState.getProperty("currentProgram", 0);
+			programManager.syncCurrentProgramIndex(progIndex);
+		}
+	}
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
