@@ -62,30 +62,27 @@ double AudioPluginAudioProcessor::getTailLengthSeconds() const
 
 int AudioPluginAudioProcessor::getNumPrograms()
 {
-	return 1; // NB: some hosts don't cope very well if you tell them there are 0
-			  // programs, so this should be at least 1, even if you're not really
-			  // implementing programs.
+	return programManager.getNumPrograms();
 }
 
 int AudioPluginAudioProcessor::getCurrentProgram()
 {
-	return 0;
+	return programManager.getCurrentProgram();
 }
 
 void AudioPluginAudioProcessor::setCurrentProgram(int index)
 {
-	juce::ignoreUnused(index);
+	programManager.setCurrentProgram(index, apvts);
 }
 
 const juce::String AudioPluginAudioProcessor::getProgramName(int index)
 {
-	juce::ignoreUnused(index);
-	return {};
+	return programManager.getProgramName(index);
 }
 
 void AudioPluginAudioProcessor::changeProgramName(int index, const juce::String& newName)
 {
-	juce::ignoreUnused(index, newName);
+	programManager.setProgramName(index, newName);
 }
 
 //==============================================================================

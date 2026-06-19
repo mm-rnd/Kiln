@@ -12,6 +12,7 @@ add_executable(KilnTests
     ParamUtils.cpp
     Compressor.cpp
     Saturation.cpp
+    ProgramManager.cpp
 )
 
 target_link_libraries(KilnTests PRIVATE
@@ -29,6 +30,7 @@ target_sources(KilnTests PRIVATE
     ${CMAKE_SOURCE_DIR}/source/LinearPhaseCrossover.cpp
     ${CMAKE_SOURCE_DIR}/source/ParamUtils.cpp
     ${CMAKE_SOURCE_DIR}/source/Compressor.cpp
+    ${CMAKE_SOURCE_DIR}/source/ProgramManager.cpp
 )
 
 add_test(NAME KilnTests COMMAND KilnTests)

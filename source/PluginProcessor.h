@@ -6,6 +6,7 @@
 #include "Gain.h"
 #include "Limiter.h"
 #include "LinearPhaseCrossover.h"
+#include "ProgramManager.h"
 #include "Saturation.h"
 
 //==============================================================================
@@ -48,12 +49,18 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
 	void getStateInformation(juce::MemoryBlock& destData) override;
 	void setStateInformation(const void* data, int sizeInBytes) override;
 
+	/** Access the program manager (for UI / host integration). */
+	[[nodiscard]] ProgramManager& getProgramManager() noexcept { return programManager; }
+	[[nodiscard]] const ProgramManager& getProgramManager() const noexcept { return programManager; }
+
 	juce::AudioProcessorValueTreeState apvts;
 
   private:
 	juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 	juce::UndoManager undoManager;
+
+	ProgramManager programManager;
 
 	/** Input crossover. */
 	LinearPhaseCrossover crossover;
