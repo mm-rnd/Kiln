@@ -16,7 +16,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 						 ),
 	  apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
-	setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples());
+	setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples() +
+					  limiter.getLatencySamples());
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor() {}
@@ -109,11 +110,14 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 	midGain.prepare(sampleRate);
 	highGain.prepare(sampleRate);
 
+	// Prepare output limiter
+	limiter.prepare(sampleRate, samplesPerBlock, numChannels);
+
 	if (sampleRateChanged)
 	{
-		// Total latency: crossover delay + fixed 2 ms delay (always on for all
-		// compressor instances to keep bands phase-aligned).
-		setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples());
+		// Total latency: crossover delay + compressor lookahead + limiter latency
+		setLatencySamples(crossover.getGroupDelaySamples() + lowCompressor.getLookaheadDelaySamples() +
+						  limiter.getLatencySamples());
 	}
 }
 
@@ -223,6 +227,9 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	applyGainParams(midGain, apvts, Param::MidOutputGain);
 	applyGainParams(highGain, apvts, Param::HighOutputGain);
 
+	// --- Set limiter parameter ---
+	limiter.setCeiling(apvts.getRawParameterValue(ParamUtils::toIdentifier(Param::LimiterCeiling))->load());
+
 	// --- Split into bands ---
 	crossover.split(buffer);
 
@@ -283,6 +290,9 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 		for (int n = 0; n < numSamples; ++n)
 			out[n] = l[n] + m[n] + h[n];
 	}
+
+	// --- Apply output limiter to summed audio ---
+	limiter.process(buffer); // TODO: Fix
 }
 
 //==============================================================================
@@ -408,6 +418,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 	addOutputGainGroup("LowGain", "Low Output", Param::LowOutputGain);
 	addOutputGainGroup("MidGain", "Mid Output", Param::MidOutputGain);
 	addOutputGainGroup("HighGain", "High Output", Param::HighOutputGain);
+
+	// --- Limiter Parameter ---
+	layout.add(std::make_unique<juce::AudioProcessorParameterGroup>(
+		"Limiter", "Limiter", ":",
+		std::make_unique<juce::AudioParameterFloat>(ParamUtils::toParameterID(Param::LimiterCeiling),
+													ParamUtils::toName(Param::LimiterCeiling),
+													juce::NormalisableRange(-24.0f, 0.0f, 0.1f), 0.0f,
+													juce::AudioParameterFloatAttributes().withAutomatable(true))));
 
 	return layout;
 }

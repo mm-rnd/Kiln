@@ -43,6 +43,7 @@ enum class Param
 	LowOutputGain,
 	MidOutputGain,
 	HighOutputGain,
+	LimiterCeiling,
 };
 
 namespace ParamUtils

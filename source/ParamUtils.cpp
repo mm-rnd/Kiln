@@ -80,6 +80,8 @@ juce::String ParamUtils::toIdentifier(Param param)
 		return "MidOutputGain";
 	case Param::HighOutputGain:
 		return "HighOutputGain";
+	case Param::LimiterCeiling:
+		return "LimiterCeiling";
 	}
 	jassertfalse;
 	return {};
@@ -165,6 +167,8 @@ juce::String ParamUtils::toName(Param param)
 		return "Mid Output";
 	case Param::HighOutputGain:
 		return "High Output";
+	case Param::LimiterCeiling:
+		return "Limiter Ceiling";
 	}
 	jassertfalse;
 	return {};

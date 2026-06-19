@@ -4,6 +4,7 @@
 
 #include "Compressor.h"
 #include "Gain.h"
+#include "Limiter.h"
 #include "LinearPhaseCrossover.h"
 #include "Saturation.h"
 
@@ -68,6 +69,9 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
 	Gain lowGain;
 	Gain midGain;
 	Gain highGain;
+
+	/** Output limiter on summed audio. */
+	Limiter limiter;
 
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)

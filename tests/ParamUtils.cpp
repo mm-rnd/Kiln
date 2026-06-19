@@ -196,6 +196,11 @@ TEST_CASE("ParamUtils::toIdentifier returns the correct identifier string", "[pa
 	{
 		CHECK(ParamUtils::toIdentifier(Param::HighOutputGain) == "HighOutputGain");
 	}
+
+	SECTION("LimiterCeiling")
+	{
+		CHECK(ParamUtils::toIdentifier(Param::LimiterCeiling) == "LimiterCeiling");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -393,6 +398,11 @@ TEST_CASE("ParamUtils::toName returns the correct display name", "[paramutils]")
 	{
 		CHECK(ParamUtils::toName(Param::HighOutputGain) == "High Output");
 	}
+
+	SECTION("LimiterCeiling")
+	{
+		CHECK(ParamUtils::toName(Param::LimiterCeiling) == "Limiter Ceiling");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -466,6 +476,7 @@ TEST_CASE("ParamUtils: ParameterID round-trip matches the enum", "[paramutils]")
 		{Param::LowOutputGain, "LowOutputGain"},
 		{Param::MidOutputGain, "MidOutputGain"},
 		{Param::HighOutputGain, "HighOutputGain"},
+		{Param::LimiterCeiling, "LimiterCeiling"},
 	};
 
 	for (const auto& [param, expectedID] : cases)
