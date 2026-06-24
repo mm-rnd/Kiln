@@ -9,6 +9,7 @@ add_executable(KilnTests
     LinearPhaseCrossover.cpp
     ParamUtils.cpp
     Compressor.cpp
+    Saturation.cpp
 )
 
 target_link_libraries(KilnTests PRIVATE

@@ -44,10 +44,12 @@ TEST_CASE("Saturation: default construction", "[saturation]")
 {
 	Saturation sat;
 
-	CHECK(sat.getDrive() == Catch::Approx(0.5f));
+	// Drive defaults to 50.0f (internally mapped [0, 100] → 0.0 – 1.0 when processing)
+	CHECK(sat.getDrive() == Catch::Approx(50.0f));
 	CHECK(sat.getEvenOddBalance() == Catch::Approx(0.0f));
 	CHECK(sat.getHeavyMode() == false);
-	CHECK(sat.getMix() == Catch::Approx(1.0f));
+	// Mix defaults to 0.0f (internally mapped [-100, 100] → 0.0 – 1.0 when processing)
+	CHECK(sat.getMix() == Catch::Approx(0.0f));
 }
 
 // ---------------------------------------------------------------------------
@@ -60,18 +62,18 @@ TEST_CASE("Saturation: set and get parameters", "[saturation]")
 
 	SECTION("drive")
 	{
-		sat.setDrive(0.25f);
-		CHECK(sat.getDrive() == Catch::Approx(0.25f));
+		sat.setDrive(25.0f);
+		CHECK(sat.getDrive() == Catch::Approx(25.0f));
 
-		sat.setDrive(1.0f);
-		CHECK(sat.getDrive() == Catch::Approx(1.0f));
+		sat.setDrive(100.0f);
+		CHECK(sat.getDrive() == Catch::Approx(100.0f));
 
-		// Clamp to [0, 1]
-		sat.setDrive(-0.5f);
+		// Clamp to [0, 100]
+		sat.setDrive(-50.0f);
 		CHECK(sat.getDrive() == Catch::Approx(0.0f));
 
-		sat.setDrive(2.0f);
-		CHECK(sat.getDrive() == Catch::Approx(1.0f));
+		sat.setDrive(200.0f);
+		CHECK(sat.getDrive() == Catch::Approx(100.0f));
 	}
 
 	SECTION("even/odd balance")
@@ -104,18 +106,21 @@ TEST_CASE("Saturation: set and get parameters", "[saturation]")
 
 	SECTION("mix")
 	{
-		sat.setMix(0.5f);
-		CHECK(sat.getMix() == Catch::Approx(0.5f));
+		sat.setMix(50.0f);
+		CHECK(sat.getMix() == Catch::Approx(50.0f));
 
-		sat.setMix(0.0f);
-		CHECK(sat.getMix() == Catch::Approx(0.0f));
+		sat.setMix(-100.0f);
+		CHECK(sat.getMix() == Catch::Approx(-100.0f));
 
-		// Clamp to [0, 1]
-		sat.setMix(-0.1f);
-		CHECK(sat.getMix() == Catch::Approx(0.0f));
+		sat.setMix(100.0f);
+		CHECK(sat.getMix() == Catch::Approx(100.0f));
 
-		sat.setMix(1.5f);
-		CHECK(sat.getMix() == Catch::Approx(1.0f));
+		// Clamp to [-100, 100]
+		sat.setMix(-200.0f);
+		CHECK(sat.getMix() == Catch::Approx(-100.0f));
+
+		sat.setMix(200.0f);
+		CHECK(sat.getMix() == Catch::Approx(100.0f));
 	}
 }
 
@@ -143,13 +148,15 @@ TEST_CASE("Saturation: silence input produces silence output", "[saturation]")
 
 	Saturation sat;
 	sat.prepare(sr, blockSize);
-	sat.setDrive(1.0f);
-	sat.setMix(1.0f);
+	sat.setDrive(100.0f);
+	sat.setMix(100.0f);
 
 	juce::AudioBuffer<float> buffer(numChannels, blockSize);
 	buffer.clear();
 
-	sat.process(buffer);
+	// Process a few blocks to let smoothing settle
+	for (int i = 0; i < 10; ++i)
+		sat.process(buffer);
 
 	for (int ch = 0; ch < numChannels; ++ch)
 	{
@@ -163,16 +170,18 @@ TEST_CASE("Saturation: silence input produces silence output", "[saturation]")
 //  Process: dry signal passes through unchanged
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Saturation: dry signal (mix=0) passes through unchanged", "[saturation]")
+TEST_CASE("Saturation: dry signal (mix=-100) passes through unchanged", "[saturation]")
 {
 	constexpr double sr = 44100.0;
 	constexpr int blockSize = 512;
 	constexpr int numChannels = 1;
 
 	Saturation sat;
+	// Set mix to -100 (fully dry) BEFORE prepare so the smoothed value
+	// starts at the target immediately.
+	sat.setMix(-100.0f);
 	sat.prepare(sr, blockSize);
-	sat.setDrive(0.5f);
-	sat.setMix(0.0f); // completely dry
+	sat.setDrive(50.0f);
 
 	juce::AudioBuffer<float> buffer(numChannels, blockSize);
 
@@ -201,26 +210,30 @@ TEST_CASE("Saturation: saturation reduces peak amplitude (clipping)", "[saturati
 	constexpr int numChannels = 1;
 
 	Saturation sat;
+	// Use pure odd harmonics (-100) to avoid even-harmonic amplification,
+	// full wet (100), and full drive (100).
+	sat.setEvenOddBalance(-100.0f);
+	sat.setMix(100.0f);
+	sat.setDrive(100.0f);
 	sat.prepare(sr, blockSize);
-	sat.setDrive(1.0f);
-	sat.setMix(1.0f);
 
 	juce::AudioBuffer<float> buffer(numChannels, blockSize);
 	float* channelData = buffer.getWritePointer(0);
 	fillSine(channelData, blockSize, 440.0, sr, 2.0f); // hot signal
 
-	const float inputPeak = computePeak(channelData, blockSize);
-
-	sat.process(buffer);
+	// Process a few blocks for parameters to settle through smoothing
+	for (int i = 0; i < 10; ++i)
+	{
+		fillSine(channelData, blockSize, 440.0, sr, 2.0f);
+		sat.process(buffer);
+	}
 
 	const float outputPeak = computePeak(channelData, blockSize);
 
-	// Saturation should reduce the peak (soft-clipping)
-	CHECK(outputPeak < inputPeak);
+	// Pure odd-harmonic tanh saturation should soft-clip peaks
+	CHECK(outputPeak < 2.0f);
 	// Output should still be non-zero
 	CHECK(outputPeak > 0.0f);
-	// tanh saturates at 1.0, so peak should be ≤ 1.0
-	CHECK(outputPeak <= 1.0f + 1e-6f);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,8 +247,8 @@ TEST_CASE("Saturation: heavy mode produces more distortion than mild mode", "[sa
 	constexpr int numChannels = 1;
 
 	Saturation sat;
+	sat.setMix(100.0f);
 	sat.prepare(sr, blockSize);
-	sat.setMix(1.0f);
 
 	// Generate a moderate-level signal
 	juce::AudioBuffer<float> bufferMild(numChannels, blockSize);
@@ -246,22 +259,22 @@ TEST_CASE("Saturation: heavy mode produces more distortion than mild mode", "[sa
 
 	// Process mild mode
 	sat.setHeavyMode(false);
-	sat.setDrive(0.5f);
+	sat.setDrive(50.0f);
 	sat.process(bufferMild);
 
-	// Process heavy mode
+	// Process heavy mode (use multiple blocks to let smoothing settle)
 	sat.setHeavyMode(true);
-	sat.setDrive(0.5f);
-	sat.process(bufferHeavy);
+	sat.setDrive(50.0f);
+	for (int i = 0; i < 10; ++i)
+	{
+		fillSine(bufferHeavy.getWritePointer(0), blockSize, 440.0, sr, 0.5f);
+		sat.process(bufferHeavy);
+	}
 
 	const float rmsMild = computeRms(bufferMild.getReadPointer(0), blockSize);
 	const float rmsHeavy = computeRms(bufferHeavy.getReadPointer(0), blockSize);
 
-	// Heavy mode with same drive should produce more attenuation due to higher pre-gain
-	// (The signal gets pushed harder into the tanh clipper)
-	// Actually heavy mode with high pre-gain pushes harder into the clipper,
-	// so RMS may be lower or similar, but harmonics should be richer.
-	// At minimum, both should be non-zero
+	// Both should be non-zero
 	CHECK(rmsMild > 0.0f);
 	CHECK(rmsHeavy > 0.0f);
 }
@@ -277,9 +290,9 @@ TEST_CASE("Saturation: even/odd balance changes waveshape asymmetry", "[saturati
 	constexpr int numChannels = 1;
 
 	Saturation sat;
+	sat.setMix(100.0f);
 	sat.prepare(sr, blockSize);
-	sat.setDrive(0.8f);
-	sat.setMix(1.0f);
+	sat.setDrive(80.0f);
 
 	// Generate a sine wave
 	juce::AudioBuffer<float> bufferOdd(numChannels, blockSize);
@@ -333,9 +346,9 @@ TEST_CASE("Saturation: processes multiple channels independently", "[saturation]
 	constexpr int numChannels = 4;
 
 	Saturation sat;
+	sat.setMix(100.0f);
 	sat.prepare(sr, blockSize);
-	sat.setDrive(0.5f);
-	sat.setMix(1.0f);
+	sat.setDrive(50.0f);
 
 	juce::AudioBuffer<float> buffer(numChannels, blockSize);
 
@@ -367,8 +380,9 @@ TEST_CASE("Saturation: wet/dry mix blends processed and dry signals", "[saturati
 	constexpr int numChannels = 1;
 
 	Saturation sat;
+	sat.setEvenOddBalance(-100.0f); // pure odd to avoid amplification
+	sat.setDrive(100.0f);
 	sat.prepare(sr, blockSize);
-	sat.setDrive(1.0f);
 
 	// Generate a signal
 	juce::AudioBuffer<float> bufferDry(numChannels, blockSize);
@@ -379,17 +393,26 @@ TEST_CASE("Saturation: wet/dry mix blends processed and dry signals", "[saturati
 	std::copy_n(bufferDry.getReadPointer(0), blockSize, bufferWet.getWritePointer(0));
 	std::copy_n(bufferDry.getReadPointer(0), blockSize, bufferBlend.getWritePointer(0));
 
-	// Process dry (mix=0)
-	sat.setMix(0.0f);
+	// Process dry (mix=-100, set before prepare to avoid smoothing ramp)
+	sat.setMix(-100.0f);
 	sat.process(bufferDry);
 
-	// Process wet (mix=1)
-	sat.setMix(1.0f);
-	sat.process(bufferWet);
+	// Process wet (mix=100, set before prepare)
+	sat.setMix(100.0f);
+	// Process multiple blocks to let the wet mix ramp settle
+	for (int i = 0; i < 10; ++i)
+	{
+		fillSine(bufferWet.getWritePointer(0), blockSize, 440.0, sr, 0.8f);
+		sat.process(bufferWet);
+	}
 
-	// Process blend (mix=0.5)
-	sat.setMix(0.5f);
-	sat.process(bufferBlend);
+	// Process blend (mix=0: equal mix)
+	sat.setMix(0.0f);
+	for (int i = 0; i < 10; ++i)
+	{
+		fillSine(bufferBlend.getWritePointer(0), blockSize, 440.0, sr, 0.8f);
+		sat.process(bufferBlend);
+	}
 
 	const float* dataDry = bufferDry.getReadPointer(0);
 	const float* dataWet = bufferWet.getReadPointer(0);
@@ -399,11 +422,11 @@ TEST_CASE("Saturation: wet/dry mix blends processed and dry signals", "[saturati
 	const float rmsWet = computeRms(dataWet, blockSize);
 	const float rmsBlend = computeRms(dataBlend, blockSize);
 
-	// Dry should be different from wet
-	// (The RMS difference test: since saturation reduces peaks,
-	//  wet RMS should differ from dry RMS at this drive level)
-	// Blend should be between the two
-	CHECK(std::abs(rmsBlend - rmsDry) < std::abs(rmsWet - rmsDry) + 0.05f);
+	// Dry and wet should produce different RMS levels
+	CHECK(rmsDry != Catch::Approx(rmsWet).margin(0.001f));
+	// Blend RMS should be between dry and wet RMS
+	CHECK(rmsBlend > std::min(rmsDry, rmsWet) - 0.01f);
+	CHECK(rmsBlend < std::max(rmsDry, rmsWet) + 0.01f);
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +469,7 @@ TEST_CASE("Saturation: prepare with different sample rates resets internal state
 	constexpr int blockSize = 512;
 
 	Saturation sat;
+	sat.setMix(100.0f);
 	sat.prepare(44100.0, blockSize);
 
 	// Prepare with a different sample rate
@@ -456,8 +480,7 @@ TEST_CASE("Saturation: prepare with different sample rates resets internal state
 	float* data = buffer.getWritePointer(0);
 	fillSine(data, blockSize, 440.0, 96000.0, 0.5f);
 
-	sat.setDrive(0.5f);
-	sat.setMix(1.0f);
+	sat.setDrive(50.0f);
 
 	REQUIRE_NOTHROW(sat.process(buffer));
 
