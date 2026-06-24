@@ -61,10 +61,19 @@ SaturationSection::SaturationSection(juce::AudioProcessorValueTreeState& apvtsRe
 void SaturationSection::paint(juce::Graphics& g)
 {
 	auto bounds = getLocalBounds().toFloat();
-	g.setColour(lookAndFeel->getAccentColour().withAlpha(0.08f));
-	g.fillRoundedRectangle(bounds.reduced(2.0f), 6.0f);
-	g.setColour(lookAndFeel->getAccentColour().withAlpha(0.2f));
-	g.drawRoundedRectangle(bounds.reduced(2.0f), 6.0f, 1.0f);
+
+	if (SectionLookAndFeel::isAnalogueMode())
+	{
+		g.setColour(SectionLookAndFeel::analogueBorderColour);
+		g.drawRoundedRectangle(bounds.reduced(2.0f), 6.0f, 1.0f);
+	}
+	else
+	{
+		g.setColour(lookAndFeel->getAccentColour().withAlpha(0.08f));
+		g.fillRoundedRectangle(bounds.reduced(2.0f), 6.0f);
+		g.setColour(lookAndFeel->getAccentColour().withAlpha(0.2f));
+		g.drawRoundedRectangle(bounds.reduced(2.0f), 6.0f, 1.0f);
+	}
 }
 
 void SaturationSection::resized()

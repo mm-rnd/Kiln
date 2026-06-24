@@ -17,9 +17,9 @@ DialComponent::DialComponent(juce::AudioProcessorValueTreeState& apvts, const ju
 {
 	slider.setSliderStyle(juce::Slider::SliderStyle::RotaryVerticalDrag);
 	slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-	slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
-	slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::black.withAlpha(0.4f));
-	slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+	slider.setColour(juce::Slider::textBoxTextColourId, textBoxTextColourDigital);
+	slider.setColour(juce::Slider::textBoxBackgroundColourId, textBoxBackgroundColourDigital);
+	slider.setColour(juce::Slider::textBoxOutlineColourId, textBoxOutlineColourDigital);
 	slider.setLookAndFeel(lf);
 	if (suffix.length() > 0)
 		slider.setTextValueSuffix(suffix);
@@ -49,9 +49,9 @@ HorizontalSliderComponent::HorizontalSliderComponent(juce::AudioProcessorValueTr
 {
 	slider.setSliderStyle(juce::Slider::SliderStyle::LinearHorizontal);
 	slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
-	slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
-	slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::black.withAlpha(0.4f));
-	slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+	slider.setColour(juce::Slider::textBoxTextColourId, textBoxTextColourDigital);
+	slider.setColour(juce::Slider::textBoxBackgroundColourId, textBoxBackgroundColourDigital);
+	slider.setColour(juce::Slider::textBoxOutlineColourId, textBoxOutlineColourDigital);
 	slider.setLookAndFeel(lf);
 	if (suffix.length() > 0)
 		slider.setTextValueSuffix(suffix);
@@ -81,9 +81,9 @@ VerticalSliderComponent::VerticalSliderComponent(juce::AudioProcessorValueTreeSt
 {
 	slider.setSliderStyle(juce::Slider::SliderStyle::LinearVertical);
 	slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-	slider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
-	slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::black.withAlpha(0.4f));
-	slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+	slider.setColour(juce::Slider::textBoxTextColourId, textBoxTextColourDigital);
+	slider.setColour(juce::Slider::textBoxBackgroundColourId, textBoxBackgroundColourDigital);
+	slider.setColour(juce::Slider::textBoxOutlineColourId, textBoxOutlineColourDigital);
 	slider.setLookAndFeel(lf);
 	if (suffix.length() > 0)
 		slider.setTextValueSuffix(suffix);
@@ -130,4 +130,10 @@ bool ToggleComponent::hitTest(int x, int y)
     constexpr int toggleHeight = 20;
     auto toggleBounds = bounds.withHeight(toggleHeight).withCentre(bounds.getCentre());
     return toggleBounds.contains(x, y);
+}
+
+void ToggleComponent::setTextColour(juce::Colour colour)
+{
+	button.setColour(juce::ToggleButton::textColourId, colour);
+	button.setColour(juce::ToggleButton::tickColourId, colour);
 }

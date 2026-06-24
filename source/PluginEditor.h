@@ -25,6 +25,7 @@ class AudioPluginAudioProcessorEditor final : public juce::AudioProcessorEditor
 
 	void paint(juce::Graphics&) override;
 	void resized() override;
+	bool keyPressed(const juce::KeyPress& key) override;
 
   private:
 	AudioPluginAudioProcessor& processorRef;
@@ -58,6 +59,8 @@ class AudioPluginAudioProcessorEditor final : public juce::AudioProcessorEditor
 
 	CompressorSection::Params makeCompParams(const juce::String& prefix);
 	SaturationSection::Params makeSatParams(const juce::String& prefix);
+
+	bool analogueMode = false;
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessorEditor)
 };

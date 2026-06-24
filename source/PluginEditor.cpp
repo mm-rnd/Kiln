@@ -1,16 +1,19 @@
 #include "PluginEditor.h"
 #include "BaseComponents.h"
-#include "CrossoverSection.h"
 #include "CompressorSection.h"
-#include "SaturationSection.h"
+#include "CrossoverSection.h"
 #include "GainSection.h"
 #include "LimiterSection.h"
 #include "LogoSection.h"
+#include "LookAndFeel.h"
 #include "ParamUtils.h"
 #include "PluginProcessor.h"
-#include "LookAndFeel.h"
+#include "SaturationSection.h"
+
+#include <juce_gui_basics/juce_gui_basics.h>
 
 #include <BinaryData.h>
+#include <cctype>
 
 namespace
 {
@@ -26,6 +29,8 @@ inline static const juce::String pctSymbol = "%";
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudioProcessor& p)
 	: AudioProcessorEditor(&p), processorRef(p), apvts(p.apvts), crossoverSection(apvts, "Crossover")
 {
+	setWantsKeyboardFocus(true);
+
 	// Audio analyser display
 	AudioAnalyser::BandColours bandColours{
 		juce::Colour(0xFF44CC88), // Low — green
@@ -212,7 +217,132 @@ SaturationSection::Params AudioPluginAudioProcessorEditor::makeSatParams(const j
 
 void AudioPluginAudioProcessorEditor::paint(juce::Graphics& g)
 {
-	g.fillAll(juce::Colour(0xFF0D0D1A));
+	if (analogueMode)
+	{
+		// Analogue mode: off-white matt background with depth and lighting from top-right
+		auto bounds = getLocalBounds().toFloat();
+
+		// Base off-white matt colour
+		juce::Colour baseColour(0xFFE8E4DC);   // Warm off-white
+		juce::Colour lightColour(0xFFF5F2EC);  // Lighter for highlights
+		juce::Colour shadowColour(0xFFD4CFC5); // Darker for shadows
+
+		// Create a radial gradient simulating light from top-right
+		auto lightSource = bounds.getTopRight();
+		auto gradient = juce::ColourGradient(lightColour, // Light colour at source
+											 lightSource.getX() - bounds.getWidth() * 0.3f,
+											 lightSource.getY() - bounds.getHeight() * 0.3f,
+											 shadowColour, // Shadow colour at opposite corner
+											 bounds.getBottomLeft().getX(), bounds.getBottomLeft().getY(), true);
+
+		// Fill with gradient
+		g.setGradientFill(gradient);
+		g.fillRect(bounds);
+
+		// Add subtle vignette effect for depth
+		auto vignetteGradient = juce::ColourGradient(juce::Colours::transparentBlack, bounds.getCentreX(),
+													 bounds.getCentreY(), juce::Colour(0xFF000000).withAlpha(0.08f),
+													 bounds.getCentreX(), bounds.getCentreY(), false);
+		vignetteGradient.addColour(0.0f, juce::Colours::transparentBlack);
+		vignetteGradient.addColour(0.7f, juce::Colour(0xFF000000).withAlpha(0.05f));
+		vignetteGradient.addColour(1.0f, juce::Colour(0xFF000000).withAlpha(0.12f));
+
+		g.setGradientFill(vignetteGradient);
+		g.fillRect(bounds);
+
+		// Add subtle top highlight for 3D effect
+		auto highlightGradient = juce::ColourGradient(
+			juce::Colours::transparentWhite, bounds.getRight(), bounds.getY(), juce::Colours::transparentBlack,
+			bounds.getRight() - bounds.getWidth() * 0.4f, bounds.getY() + bounds.getHeight() * 0.3f, true);
+		highlightGradient.addColour(0.0f, juce::Colours::transparentWhite);
+		highlightGradient.addColour(0.5f, juce::Colour(0xFFFFFFFF).withAlpha(0.15f));
+		highlightGradient.addColour(1.0f, juce::Colours::transparentBlack);
+
+		g.setGradientFill(highlightGradient);
+		g.fillRect(bounds);
+	}
+	else
+	{
+		// Digital mode: original dark background
+		g.fillAll(juce::Colour(0xFF0D0D1A));
+	}
+}
+
+namespace
+{
+void updateSliderColoursForAnalogueMode(juce::Component& comp, bool analogueMode)
+{
+	// Walk all children recursively to find sliders
+	if (auto* slider = dynamic_cast<juce::Slider*>(&comp))
+	{
+		if (analogueMode)
+		{
+			slider->setColour(juce::Slider::textBoxTextColourId, textBoxTextColourAnalogue);
+			slider->setColour(juce::Slider::textBoxBackgroundColourId, textBoxBackgroundColourAnalogue);
+			slider->setColour(juce::Slider::textBoxOutlineColourId, textBoxOutlineColourAnalogue);
+		}
+		else
+		{
+			slider->setColour(juce::Slider::textBoxTextColourId, textBoxTextColourDigital);
+			slider->setColour(juce::Slider::textBoxBackgroundColourId, textBoxBackgroundColourDigital);
+			slider->setColour(juce::Slider::textBoxOutlineColourId, textBoxOutlineColourDigital);
+		}
+	}
+
+	// Walk all children recursively to find toggle buttons
+	if (auto* toggle = dynamic_cast<ToggleComponent*>(&comp))
+	{
+		if (analogueMode)
+			toggle->setTextColour(textBoxTextColourAnalogue);
+		else
+			toggle->setTextColour(textBoxTextColourDigital);
+	}
+
+	// Walk all children recursively to find labels
+	if (auto* label = dynamic_cast<juce::Label*>(&comp))
+	{
+		const auto isNotTextBox = dynamic_cast<juce::Slider*>(label->getParentComponent()) == nullptr;
+
+		if (analogueMode)
+		{
+			label->getProperties().set("originalText", label->getText());
+			label->setColour(juce::Label::textColourId, textBoxTextColourAnalogue);
+			if (isNotTextBox)
+				label->setText(label->getText().toUpperCase(), juce::dontSendNotification);
+		}
+		else
+		{
+			const auto original = label->getProperties()["originalText"].toString();
+			if (original.isNotEmpty() && isNotTextBox)
+				label->setText(original, juce::dontSendNotification);
+			label->setColour(juce::Label::textColourId, textBoxTextColourDigital);
+		}
+	}
+
+	for (auto* child : comp.getChildren())
+		updateSliderColoursForAnalogueMode(*child, analogueMode);
+}
+} // namespace
+
+bool AudioPluginAudioProcessorEditor::keyPressed(const juce::KeyPress& key)
+{
+	// CMD+SHIFT+U on macOS, CTRL+SHIFT+U on Windows/Linux
+	if ((key.getModifiers().isCommandDown() || key.getModifiers().isCtrlDown()) && key.getModifiers().isShiftDown() &&
+		std::toupper(key.getKeyCode()) == 'U')
+	{
+		analogueMode = !analogueMode;
+
+		// Update the static analogue mode flag in the LookAndFeel
+		SectionLookAndFeel::setAnalogueMode(analogueMode);
+
+		// Update all slider textbox colours recursively
+		updateSliderColoursForAnalogueMode(*this, analogueMode);
+
+		repaint(); // Trigger repaint to update background and all labels
+		return true;
+	}
+
+	return false;
 }
 
 void AudioPluginAudioProcessorEditor::resized()

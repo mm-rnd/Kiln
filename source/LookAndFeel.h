@@ -10,6 +10,10 @@ class SectionLookAndFeel : public juce::LookAndFeel_V4
 	explicit SectionLookAndFeel(juce::Colour accentColour);
 	juce::Colour getAccentColour() const noexcept { return accent; }
 
+	/** Enable/disable analogue mode across all SectionLookAndFeel instances. */
+	static void setAnalogueMode(bool enabled) noexcept { analogueMode = enabled; }
+	static bool isAnalogueMode() noexcept { return analogueMode; }
+
 	void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
 						  float rotaryStartAngle, float rotaryEndAngle, juce::Slider&) override;
 
@@ -21,8 +25,16 @@ class SectionLookAndFeel : public juce::LookAndFeel_V4
 
 	void drawLabel(juce::Graphics& g, juce::Label& label) override;
 
+  public:
+	/** Colour used for all text in analogue mode. Change this to tweak the shade. */
+	inline static juce::Colour analogueTextColour = juce::Colours::black;
+
+	/** Border colour used for section outlines in analogue mode. Change this to tweak the shade. */
+	inline static juce::Colour analogueBorderColour { 0xFF000000 };
+
   private:
 	juce::Colour accent;
+	inline static bool analogueMode = false;
 };
 
 //==============================================================================

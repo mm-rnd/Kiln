@@ -15,6 +15,10 @@ LogoSection::LogoSection(const juce::String& url)
 
 void LogoSection::paint(juce::Graphics& g)
 {
+	// No background or border in analogue mode
+	if (SectionLookAndFeel::isAnalogueMode())
+		return;
+
 	auto bounds = getLocalBounds().toFloat();
 
 	g.setColour(juce::Colour(0xFF1A1A2E));
