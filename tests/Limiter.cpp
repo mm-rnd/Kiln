@@ -513,3 +513,207 @@ TEST_CASE("Limiter::process works in stereo", "[limiter]")
 
 	CHECK(peak <= Approx(ceilingLinear).margin(0.02f));
 }
+
+// ---------------------------------------------------------------------------
+//  getGainReductionDb() / getMaxGainReductionDb()
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Limiter::getGainReductionDb returns 0 before processing", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-6.0f);
+
+	// No audio processed yet, so no gain reduction should be applied
+	CHECK(lim.getGainReductionDb(0) == 0.0f);
+	CHECK(lim.getGainReductionDb(1) == 0.0f);
+}
+
+TEST_CASE("Limiter::getGainReductionDb returns 0 for signal below ceiling", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-6.0f);
+
+	// Process a low-level signal well below ceiling
+	juce::AudioBuffer<float> buf(2, 512);
+	fillConstant(buf, 0.01f);
+	lim.process(buf);
+
+	// No limiting should occur, so gain reduction should be ~0 dB
+	CHECK(lim.getGainReductionDb(0) == Approx(0.0f).margin(0.1f));
+	CHECK(lim.getGainReductionDb(1) == Approx(0.0f).margin(0.1f));
+}
+
+TEST_CASE("Limiter::getGainReductionDb reports reduction for signal above ceiling", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 1);
+	lim.setCeiling(-12.0f);
+
+	// Warm up with a signal that exceeds the ceiling
+	juce::AudioBuffer<float> buf(1, 512);
+	for (int i = 0; i < 20; ++i)
+	{
+		fillConstant(buf, 1.0f);
+		lim.process(buf);
+	}
+
+	// After steady state, there should be significant gain reduction
+	// A 0 dBFS signal with -12 dB ceiling needs ~12 dB of reduction
+	const float gr = lim.getGainReductionDb(0);
+	CHECK(gr <= Approx(-11.0f).margin(1.0f)); // Should be around -12 dB
+	CHECK(gr >= -24.0f); // Should not exceed the max gain reduction
+}
+
+TEST_CASE("Limiter::getGainReductionDb returns 0 for out-of-range channel", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-6.0f);
+
+	// Process some audio to ensure state is non-zero
+	juce::AudioBuffer<float> buf(2, 512);
+	fillConstant(buf, 1.0f);
+	lim.process(buf);
+
+	// Out-of-range channels should return 0.0f
+	CHECK(lim.getGainReductionDb(-1) == 0.0f);
+	CHECK(lim.getGainReductionDb(2) == 0.0f);
+	CHECK(lim.getGainReductionDb(100) == 0.0f);
+}
+
+TEST_CASE("Limiter::getGainReductionDb returns 0 after reset", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-6.0f);
+
+	// Process audio to build up gain reduction
+	juce::AudioBuffer<float> buf(2, 512);
+	fillConstant(buf, 1.0f);
+	for (int i = 0; i < 20; ++i)
+		lim.process(buf);
+
+	// Verify there is gain reduction before reset
+	CHECK(lim.getGainReductionDb(0) < -0.1f);
+
+	// Reset should clear all state
+	lim.reset();
+
+	CHECK(lim.getGainReductionDb(0) == 0.0f);
+	CHECK(lim.getGainReductionDb(1) == 0.0f);
+}
+
+TEST_CASE("Limiter::getMaxGainReductionDb returns 0 with no limiting", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-6.0f);
+
+	// No limiting applied yet
+	CHECK(lim.getMaxGainReductionDb() == 0.0f);
+}
+
+TEST_CASE("Limiter::getMaxGainReductionDb returns maximum reduction across channels", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-12.0f);
+
+	// Process with different levels on each channel to create asymmetric limiting
+	juce::AudioBuffer<float> buf(2, 512);
+
+	// Warm up with full-scale on both channels
+	for (int i = 0; i < 20; ++i)
+	{
+		fillConstant(buf, 1.0f);
+		lim.process(buf);
+	}
+
+	// Both channels should have similar gain reduction
+	const float gr0 = lim.getGainReductionDb(0);
+	const float gr1 = lim.getGainReductionDb(1);
+	const float maxGr = lim.getMaxGainReductionDb();
+
+	// getMaxGainReductionDb should return the most negative (maximum reduction)
+	CHECK(maxGr <= 0.0f);
+	CHECK(maxGr == std::min(gr0, gr1));
+	CHECK(maxGr <= Approx(-11.0f).margin(1.0f));
+}
+
+TEST_CASE("Limiter::getMaxGainReductionDb handles channels with different reduction", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-12.0f);
+
+	juce::AudioBuffer<float> buf(2, 512);
+
+	// Warm up with full-scale on both channels
+	for (int i = 0; i < 20; ++i)
+	{
+		fillConstant(buf, 1.0f);
+		lim.process(buf);
+	}
+
+	// Now reduce only channel 1 to create asymmetric limiting
+	for (int i = 0; i < 20; ++i)
+	{
+		buf.clear();
+		buf.setSample(0, 0, 1.0f);  // Channel 0: full scale
+		buf.setSample(1, 0, 0.5f);  // Channel 1: -6 dBFS
+		lim.process(buf);
+	}
+
+	const float gr0 = lim.getGainReductionDb(0);
+	const float gr1 = lim.getGainReductionDb(1);
+	const float maxGr = lim.getMaxGainReductionDb();
+
+	// Channel 0 should have more reduction than channel 1
+	CHECK(gr0 < gr1);
+	// getMaxGainReductionDb should return the more negative value (channel 0)
+	CHECK(maxGr == gr0);
+}
+
+TEST_CASE("Limiter::getMaxGainReductionDb returns 0 after reset", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 2);
+	lim.setCeiling(-6.0f);
+
+	// Build up gain reduction
+	juce::AudioBuffer<float> buf(2, 512);
+	fillConstant(buf, 1.0f);
+	for (int i = 0; i < 20; ++i)
+		lim.process(buf);
+
+	CHECK(lim.getMaxGainReductionDb() < -0.1f);
+
+	// Reset clears all state
+	lim.reset();
+
+	CHECK(lim.getMaxGainReductionDb() == 0.0f);
+}
+
+TEST_CASE("Limiter::getMaxGainReductionDb works with mono signal", "[limiter]")
+{
+	Limiter lim;
+	lim.prepare(44100.0, 512, 1);
+	lim.setCeiling(-12.0f);
+
+	// Warm up with full-scale signal
+	juce::AudioBuffer<float> buf(1, 512);
+	for (int i = 0; i < 20; ++i)
+	{
+		fillConstant(buf, 1.0f);
+		lim.process(buf);
+	}
+
+	const float gr = lim.getGainReductionDb(0);
+	const float maxGr = lim.getMaxGainReductionDb();
+
+	// With a single channel, both functions should return the same value
+	CHECK(maxGr == gr);
+	CHECK(maxGr <= Approx(-11.0f).margin(1.0f));
+}

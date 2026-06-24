@@ -10,7 +10,8 @@ Limiter::Limiter() = default;
 //==============================================================================
 void Limiter::prepare(double sr, int bs, int nc)
 {
-	const bool reallocate = oversampler == nullptr || !juce::approximatelyEqual(sr, sampleRate) || !juce::approximatelyEqual(blockSize, bs) || numChannels != nc;
+	const bool reallocate = oversampler == nullptr || !juce::approximatelyEqual(sr, sampleRate) ||
+							!juce::approximatelyEqual(blockSize, bs) || numChannels != nc;
 
 	sampleRate = sr;
 	blockSize = bs;
@@ -52,6 +53,10 @@ void Limiter::process(juce::AudioBuffer<float>& buffer)
 
 	if (numSamples == 0 || numCh == 0)
 		return;
+
+	// Resize channelStates if needed (e.g. after reset() cleared it)
+	if (static_cast<int>(channelStates.size()) != numCh)
+		channelStates.resize(static_cast<size_t>(numCh));
 
 	// --- 1. Apply lookahead delay to input ---
 	// We delay the input so the envelope detector can "look ahead"
@@ -118,7 +123,7 @@ void Limiter::process(juce::AudioBuffer<float>& buffer)
 				// Less reduction needed → smoothed release (prevents zipper noise)
 				const float releaseTimeMs = computeReleaseTime(state.gainReductionDb);
 				const float releaseCoeff = 1.0f - std::exp(-1.0f / (releaseTimeMs * static_cast<float>(sampleRate) *
-																		static_cast<float>(oversampleFactor) / 1000.0f));
+																	static_cast<float>(oversampleFactor) / 1000.0f));
 				state.gainReductionDb += (targetGainReductionDb - state.gainReductionDb) * releaseCoeff;
 			}
 
@@ -139,7 +144,10 @@ void Limiter::reset()
 		oversampler->reset();
 
 	lookaheadDelay.reset();
-	channelStates.clear();
+
+	for (auto& ch : channelStates)
+		ch = ChannelState{};
+
 	ceilingDb.reset(sampleRate * oversampleFactor, 0.05);
 	ceilingDb.setCurrentAndTargetValue(ceilingDb.getTargetValue());
 }
@@ -163,6 +171,27 @@ int Limiter::getLatencySamples() const noexcept
 	const int lookaheadSamples = static_cast<int>(std::round(lookaheadMs * sampleRate / 1000.0));
 	const int oversamplingLatency = oversampler ? static_cast<int>(oversampler->getLatencyInSamples()) : 0;
 	return lookaheadSamples + oversamplingLatency;
+}
+
+//==============================================================================
+//  Gain reduction monitoring
+//==============================================================================
+
+float Limiter::getGainReductionDb(int channel) const noexcept
+{
+	if (channel >= 0 && channel < numChannels)
+		return channelStates[static_cast<size_t>(channel)].gainReductionDb;
+	return 0.0f;
+}
+
+float Limiter::getMaxGainReductionDb() const noexcept
+{
+	float maxGR = 0.0f;
+	for (const auto& ch : channelStates)
+	{
+		maxGR = std::min(maxGR, ch.gainReductionDb);
+	}
+	return maxGR;
 }
 
 //==============================================================================

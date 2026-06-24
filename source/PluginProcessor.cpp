@@ -2,6 +2,7 @@
 #include "ParamUtils.h"
 #include "PluginEditor.h"
 
+#include <algorithm>
 #include <cmath>
 
 //==============================================================================
@@ -242,6 +243,18 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	std::vector<const float*> chIn(static_cast<size_t>(numChannels));
 	std::vector<float*> chOut(static_cast<size_t>(numChannels));
 
+	// --- Capture pre-compressor (post-crossover) data for analyser ---------
+	// Copy crossover output (before compression) into temp buffers for capture
+	juce::AudioBuffer<float> lowPreComp(numChannels, numSamples);
+	juce::AudioBuffer<float> midPreComp(numChannels, numSamples);
+	juce::AudioBuffer<float> highPreComp(numChannels, numSamples);
+	for (int ch = 0; ch < numChannels; ++ch)
+	{
+		std::copy(crossover.getLowBand(ch), crossover.getLowBand(ch) + numSamples, lowPreComp.getWritePointer(ch));
+		std::copy(crossover.getMidBand(ch), crossover.getMidBand(ch) + numSamples, midPreComp.getWritePointer(ch));
+		std::copy(crossover.getHighBand(ch), crossover.getHighBand(ch) + numSamples, highPreComp.getWritePointer(ch));
+	}
+
 	// --- Compress low band ---
 	for (int ch = 0; ch < numChannels; ++ch)
 	{
@@ -266,6 +279,11 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	}
 	highCompressor.process(chIn.data(), chOut.data(), numSamples);
 
+	// --- Capture pre-saturation data for analyser (before saturation distorts harmonics) ---
+	juce::AudioBuffer<float> lowPreSat(lowOut);
+	juce::AudioBuffer<float> midPreSat(midOut);
+	juce::AudioBuffer<float> highPreSat(highOut);
+
 	// --- Apply saturation to each compressed band ---
 	lowSaturation.process(lowOut);
 	midSaturation.process(midOut);
@@ -289,7 +307,76 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, j
 	}
 
 	// --- Apply output limiter to summed audio ---
-	limiter.process(buffer); // TODO: Fix
+	limiter.process(buffer);
+
+	// --- Capture analyser data from the audio thread ---
+	// Use channel 0 for FFT sample capture
+	const auto* lowData = lowOut.getReadPointer(0);
+	const auto* midData = midOut.getReadPointer(0);
+	const auto* highData = highOut.getReadPointer(0);
+	const auto* lowPreSatData = lowPreSat.getReadPointer(0);
+	const auto* midPreSatData = midPreSat.getReadPointer(0);
+	const auto* highPreSatData = highPreSat.getReadPointer(0);
+	const auto* lowPreCompData = lowPreComp.getReadPointer(0);
+	const auto* midPreCompData = midPreComp.getReadPointer(0);
+	const auto* highPreCompData = highPreComp.getReadPointer(0);
+
+	for (int n = 0; n < numSamples; ++n)
+	{
+		// Pre-compressor (post-crossover) samples for background spectrum
+		AnalyserData::pushSample(analyserData.lowPreCompBuffer, analyserData.lowPreCompPos, lowPreCompData[n]);
+		AnalyserData::pushSample(analyserData.midPreCompBuffer, analyserData.midPreCompPos, midPreCompData[n]);
+		AnalyserData::pushSample(analyserData.highPreCompBuffer, analyserData.highPreCompPos, highPreCompData[n]);
+
+		// Pre-saturation (post-compressor) samples for foreground spectrum FFT
+		AnalyserData::pushSample(analyserData.lowPreSatBuffer, analyserData.lowPreSatPos, lowPreSatData[n]);
+		AnalyserData::pushSample(analyserData.midPreSatBuffer, analyserData.midPreSatPos, midPreSatData[n]);
+		AnalyserData::pushSample(analyserData.highPreSatBuffer, analyserData.highPreSatPos, highPreSatData[n]);
+
+		// Post-saturation (post-gain) samples for harmonic analysis & final level
+		AnalyserData::pushSample(analyserData.lowPostSatBuffer, analyserData.lowPostSatPos, lowData[n]);
+		AnalyserData::pushSample(analyserData.midPostSatBuffer, analyserData.midPostSatPos, midData[n]);
+		AnalyserData::pushSample(analyserData.highPostSatBuffer, analyserData.highPostSatPos, highData[n]);
+
+		// Final (post-gain) samples for the current level line
+		AnalyserData::pushSample(analyserData.lowFinalBuffer, analyserData.lowFinalPos, lowData[n]);
+		AnalyserData::pushSample(analyserData.midFinalBuffer, analyserData.midFinalPos, midData[n]);
+		AnalyserData::pushSample(analyserData.highFinalBuffer, analyserData.highFinalPos, highData[n]);
+	}
+
+	// Accumulate RMS over all channels for each band
+	float lowRmsSumSq = 0.0f;
+	float midRmsSumSq = 0.0f;
+	float highRmsSumSq = 0.0f;
+	for (int ch = 0; ch < numChannels; ++ch)
+	{
+		const auto* l = lowOut.getReadPointer(ch);
+		const auto* m = midOut.getReadPointer(ch);
+		const auto* h = highOut.getReadPointer(ch);
+		for (int n = 0; n < numSamples; ++n)
+		{
+			lowRmsSumSq += l[n] * l[n];
+			midRmsSumSq += m[n] * m[n];
+			highRmsSumSq += h[n] * h[n];
+		}
+	}
+
+	// Post-compressor RMS level (dB) — currently approximating with available data
+	const float lowRms = std::sqrt(lowRmsSumSq / static_cast<float>(numSamples * numChannels));
+	const float midRms = std::sqrt(midRmsSumSq / static_cast<float>(numSamples * numChannels));
+	const float highRms = std::sqrt(highRmsSumSq / static_cast<float>(numSamples * numChannels));
+
+	analyserData.lowPostCompLevel.store(juce::Decibels::gainToDecibels(lowRms), std::memory_order_release);
+	analyserData.midPostCompLevel.store(juce::Decibels::gainToDecibels(midRms), std::memory_order_release);
+	analyserData.highPostCompLevel.store(juce::Decibels::gainToDecibels(highRms), std::memory_order_release);
+
+	// Current level — final output level (after saturation and output gain)
+	analyserData.lowLevel.store(AnalyserData::computeRMS(analyserData.lowFinalBuffer, analyserData.lowFinalPos), std::memory_order_release);
+	analyserData.midLevel.store(AnalyserData::computeRMS(analyserData.midFinalBuffer, analyserData.midFinalPos), std::memory_order_release);
+	analyserData.highLevel.store(AnalyserData::computeRMS(analyserData.highFinalBuffer, analyserData.highFinalPos), std::memory_order_release);
+
+	// Limiter GR — now exposed from the processing modules
+	analyserData.limiterGR.store(limiter.getMaxGainReductionDb(), std::memory_order_release);
 }
 
 //==============================================================================

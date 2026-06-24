@@ -45,6 +45,16 @@ class Limiter
 	/** @return total latency in samples (lookahead + oversampling). */
 	[[nodiscard]] int getLatencySamples() const noexcept;
 
+	// -----------------------------------------------------------------------
+	//  Gain reduction monitoring
+	// -----------------------------------------------------------------------
+
+	/** Get the current gain reduction in dB for a specific channel. */
+	[[nodiscard]] float getGainReductionDb(int channel) const noexcept;
+
+	/** Get the maximum gain reduction across all channels in dB. */
+	[[nodiscard]] float getMaxGainReductionDb() const noexcept;
+
   private:
 	// -----------------------------------------------------------------------
 	//  Parameters (smoothed for click-free changes)

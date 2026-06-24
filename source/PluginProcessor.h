@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "AudioAnalyser.h"
 #include "Compressor.h"
 #include "Gain.h"
 #include "Limiter.h"
@@ -53,6 +54,10 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
 	[[nodiscard]] ProgramManager& getProgramManager() noexcept { return programManager; }
 	[[nodiscard]] const ProgramManager& getProgramManager() const noexcept { return programManager; }
 
+	/** Access the analyser data (for UI). */
+	[[nodiscard]] AnalyserData& getAnalyserData() noexcept { return analyserData; }
+	[[nodiscard]] const AnalyserData& getAnalyserData() const noexcept { return analyserData; }
+
 	juce::AudioProcessorValueTreeState apvts;
 
   private:
@@ -82,6 +87,9 @@ class AudioPluginAudioProcessor final : public juce::AudioProcessor
 
 	/** Output limiter on summed audio. */
 	Limiter limiter;
+
+	/** Audio analyser data (shared with UI). */
+	AnalyserData analyserData;
 
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)
